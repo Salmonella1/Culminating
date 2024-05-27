@@ -1,0 +1,283 @@
+let player;
+let traffic = [];
+let score = 0;
+let laneWidth;
+let carWidth;
+let carHeight;
+let carSpeed;
+let roadColor;
+let playerColor;
+let trafficColor1;
+let trafficColor2;
+let gameState = 'welcome'; // Initial game state
+let moveLeft = false; // Track left movement
+let moveRight = false; // Track right movement
+let level = 1;
+
+function setup() {
+  createCanvas(500, 600);
+  laneWidth = width / 2;
+  carWidth = laneWidth / 4;
+  carHeight = 80;
+  carSpeed = 5;
+  roadColor = color(100);
+  playerColor = color(0, 0, 255);
+  trafficColor1 = color(255, 105, 180);
+  trafficColor2 = color(255, 0, 0);
+
+  // Adjust player position to be in the center of the right lane
+  let rightLaneCenter = laneWidth + laneWidth / 4;
+  player = new Car(rightLaneCenter - carWidth / 2, height - 150, carWidth, carHeight, playerColor);
+}
+
+function draw() {
+  if (gameState === 'welcome') {
+    showWelcomeScreen();
+  } else if (gameState === 'playing') {
+    playGame();
+    showObstacles(); // Show obstacles during gameplay
+  } else if (gameState === 'gameOver' || gameState === 'gameWon') {
+    // We don't need to draw anything extra for game over or game won state,
+    // but you can add something if needed.
+  }
+}
+
+function keyPressed() {
+  if (gameState === 'welcome') {
+    gameState = 'playing'; // Switch to the game state
+  } else if (gameState === 'playing') {
+    if (keyCode === RIGHT_ARROW) {
+      moveRight = true;
+    } else if (keyCode === LEFT_ARROW) {
+      moveLeft = true;
+    }
+  } else if ((gameState === 'gameOver' || gameState === 'gameWon') && key === 'a') { // Restart game if 'a' key is pressed
+    resetGame(level);
+    loop(); // Restart the draw loop
+  } else if (gameState === 'gameWon' && key === 'a') {
+    resetGame(1); // Reset the game to level 1 when the game is won
+    loop(); // Restart the draw loop
+  }
+}
+
+
+function keyReleased() {
+  if (gameState === 'playing') {
+    if (keyCode === RIGHT_ARROW) {
+      moveRight = false;
+    } else if (keyCode === LEFT_ARROW) {
+      moveLeft = false;
+    }
+  }
+}
+
+function showWelcomeScreen() {
+  background(0);
+  textSize(32);
+  textAlign(CENTER, CENTER);
+  fill(255);
+  text("Level " + level + ": Are You Ready?", width / 2, height / 2 - 20);
+  textSize(20);
+  text('Use the left and right arrow to move the car.', width / 2, height / 2 + 20);
+  text('If you lose, press "a" to restart. Have fun :)', width / 2, height / 2 + 40);
+  text("Press any key to start", width / 2, height / 2 + 60);
+}
+
+function playGame() {
+  background(50, 205, 50);
+
+  // Draw road
+  fill(roadColor);
+  rect(laneWidth / 2, 0, laneWidth, height);
+
+  // Draw center line
+  stroke(255, 255, 0);
+  strokeWeight(3);
+  line(laneWidth, 0, laneWidth, height);
+
+  // Draw trees on the sides
+  drawTrees();
+
+  // Update and show player car
+  if (moveLeft) {
+    player.move(-1); // Continuous left movement
+  }
+  if (moveRight) {
+    player.move(1); // Continuous right movement
+  }
+  player.show();
+
+  // Display score
+  textSize(20);
+  textAlign(RIGHT);
+  fill(255);
+  text("Score: " + score, width - 20, 30);
+
+  // Level completion logic
+  if (level === 1 && score >= 10) {
+    level = 2;
+    gameState = 'welcome'; // Set gameState to 'welcome' to show the next level message
+  } else if (level === 2 && score >= 20) {
+    level = 3;
+    gameState = 'welcome'; // Set gameState to 'welcome' to show the next level message
+  } else if (level === 3 && score >= 30) {
+      gameState = 'gameWon'; // Set gameState to 'gameWon' to show the game won message
+    resetGame(1); // Reset the game to level 1 when the game is won
+      gameWonScreen(); // Call gameWonScreen function to show the game won screen
+    }
+  }
+
+
+function resetGame(nextLevel) {
+  level = nextLevel; // Reset level to the specified next level
+  gameState = 'welcome'; // Reset to welcome state
+  score = 0;
+  traffic = []; // Clear traffic
+  player = new Car(laneWidth + laneWidth / 4 - carWidth / 2, height - 150, carWidth, carHeight, playerColor);
+}
+
+
+function gameWonScreen() {
+  gameState = 'gameWon';
+  background(0);
+  textSize(32);
+  textAlign(CENTER, CENTER);
+  fill(255);
+  text("You won the game!", width / 2, height / 2);
+  textSize(20);
+  text("Press 'a' to restart", width / 2, height / 2 + 50);
+
+}
+
+function showObstacles() {
+  for (let i = traffic.length - 1; i >= 0; i--) {
+    traffic[i].show();
+    traffic[i].move();
+
+    if (traffic[i].offscreen()) {
+      traffic.splice(i, 1);
+      score++; // Increase score when avoiding an obstacle
+    }
+
+    if (traffic[i].hits(player)) {
+      gameOver();
+    }
+  }
+
+  if (frameCount % 100 === 0) {
+    let obstacle = new Obstacle(random(laneWidth / 2, laneWidth), 0, carWidth, carHeight, random([trafficColor1, trafficColor2]));
+    traffic.push(obstacle);
+  }
+}
+
+class Obstacle {
+  constructor(x, y, w, h, color) {
+    this.x = x;
+    this.y = y;
+    this.width = w;
+    this.height = h;
+    this.color = color;
+  }
+
+  move() {
+    this.y += carSpeed;
+  }
+
+  show() {
+    fill(this.color);
+    rect(this.x, this.y, this.width, this.height, 7);
+
+    // Additional obstacle visual elements if needed
+  }
+
+  offscreen() {
+    return this.y > height;
+  }
+
+  hits(car) {
+    return (
+      this.y + this.height > car.y &&
+      this.y < car.y + car.height &&
+      this.x + this.width > car.x &&
+      this.x < car.x + car.width
+    );
+  }
+}
+
+function gameOver() {
+  gameState = 'gameOver';
+  textSize(32);
+  textAlign(CENTER, CENTER);
+  fill(255, 0, 0);
+  text("Oh no!  Press 'a' to restart", width / 2, height / 2); // Display restart message
+  noLoop();
+}
+
+class Car {
+  constructor(x, y, w, h, color) {
+    this.x = x;
+    this.y = y;
+    this.width = w;
+    this.height = h;
+    this.color = color;
+  }
+
+  move(direction) {
+    this.x += direction
+     * 5; // Smooth movement
+        this.x = constrain(this.x, laneWidth / 4 - carWidth / 2, laneWidth + laneWidth / 4 - carWidth / 2);
+      }
+
+      show() {
+        fill(this.color);
+        rect(this.x, this.y, this.width, this.height, 7);
+
+        fill(255);
+        rect(this.x + this.width * 0.1, this.y, this.width * 0.1, this.height);
+        rect(this.x + this.width * 0.8, this.y, this.width * 0.1, this.height);
+
+        fill(0, 0, 139);
+        rect(this.x + this.width * 0.25, this.y + this.height * 0.25, this.width * 0.5, this.height * 0.5);
+
+        stroke(0);
+        strokeWeight(2);
+        noFill();
+        rect(this.x + this.width * 0.25, this.y + this.height * 0.25, this.width * 0.5, this.height * 0.5);
+        noStroke();
+
+        fill(0);
+        ellipse(this.x + this.width * 0.2, this.y + this.height * 0.1, this.width * 0.1, this.height * 0.1);
+        ellipse(this.x + this.width * 0.8, this.y + this.height * 0.1, this.width * 0.1, this.height * 0.1);
+        ellipse(this.x + this.width * 0.2, this.y + this.height * 0.9, this.width * 0.1, this.height * 0.1);
+        ellipse(this.x + this.width * 0.8, this.y + this.height * 0.9, this.width * 0.1, this.height * 0.1);
+      }
+
+      offscreen() {
+        return this.y > height;
+      }
+
+      hits(car) {
+        return (
+          this.y + this.height > car.y &&
+          this.y < car.y + car.height &&
+          this.x + this.width > car.x &&
+          this.x < car.x + car.width
+        );
+      }
+    }
+
+    function drawTrees() {
+      for (let y = 50; y < height; y += 150) {
+        fill(34, 139, 34);
+        noStroke();
+        ellipse(50, y, 30, 50);
+
+        fill(139, 69, 19);
+        rect(45, y + 20, 10, 30);
+
+        fill(34, 139, 34);
+        ellipse(width - 50, y, 30, 50);
+        fill(139, 69, 19);
+        rect(width - 55, y + 20, 10, 30);
+      }
+    }
